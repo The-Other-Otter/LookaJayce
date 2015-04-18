@@ -24,6 +24,19 @@ namespace LookaJayce
         private static Spell Ehammer = new Spell(SpellSlot.E, 270); //Knock back
         private static Spell Rswitch = new Spell(SpellSlot.R, 0);   //Switch forms
 
+        //Cooldowns
+        public static float[] QcannonTrueCD = {  8,  8,  8,  8,  8 };
+        public static float[] WcannonTrueCD = { 14, 12, 10,  8,  6 };
+        public static float[] EcannonTrueCD = { 16, 16, 16, 16, 16 };
+        public static float[] QhammerTrueCD = { 16, 14, 12, 10,  8 };
+        public static float[] WhammerTrueCD = { 10, 10, 10, 10, 10 };
+        public static float[] EhammerTrueCD = { 14, 12, 12, 11, 10 };
+
+        private static float QcannonCD, WcannonCD, EcannonCD;
+        private static float QhammerCD, WhammerCD, EhammerCD;
+        private static float QcannonCDrem, WcannonCDrem, EcannonCDrem;
+        private static float QhammerCDrem, WhammerCDrem, EhammerCDrem;
+
         //status
         private static readonly SpellDataInst Qdata = ObjectManager.Player.Spellbook.GetSpell(SpellSlot.Q);
         private static readonly SpellDataInst Wdata = ObjectManager.Player.Spellbook.GetSpell(SpellSlot.W);
@@ -76,33 +89,32 @@ namespace LookaJayce
                 drawMenu.AddItem(new MenuItem("Ecannon", "E Cannon", true).SetValue(false));
                 drawMenu.AddItem(new MenuItem("Qhammer", "Q Hammer", true).SetValue(true));
                 drawMenu.AddItem(new MenuItem("Ehammer", "E Hammer", true).SetValue(false));
+                drawMenu.AddItem(new MenuItem("drawcds", "Draw Cooldowns", true).SetValue(true));
                 menu.AddSubMenu(drawMenu);
             }
-
-
             menu.AddToMainMenu();
-            Game.PrintChat("LookaJayce Loaded!");
 
             Game.OnUpdate += Game_OnGameUpdate;
             Drawing.OnDraw += Drawing_OnDraw;
             AntiGapcloser.OnEnemyGapcloser += AntiGapcloser_OnEnemyGapcloser;
             Interrupter2.OnInterruptableTarget += InterrupterOnPossibleToInterrupt;
+            Obj_AI_Hero.OnProcessSpellCast += Obj_AI_Base_OnProcessSpellCast;
+
+            Game.PrintChat("LookaJayce By Lookaside Loaded! GLHF :D");
         }
 
         private static void Game_OnGameUpdate(EventArgs args)
         {
-            //Dead?
             if (Player.IsDead) return;
+            isHammer = !Qdata.Name.Contains("jayceshockblast"); //Update Form
+            ProcessCDs();
 
-            //Check form
-            isHammer = !Qdata.Name.Contains("jayceshockblast");
-
-            if (menu.Item("ks", true).GetValue<bool>())
+            if (menu.Item("ks", true).GetValue<bool>()) //KS Check
             {
                 MLG_quickscope();
             }
 
-            if (menu.Item("QuickScope", true).GetValue<KeyBind>().Active)
+            if (menu.Item("QuickScope", true).GetValue<KeyBind>().Active) //Shootmouse
             {
                 Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
                 if (isHammer && Rswitch.IsReady()) Rswitch.Cast();
@@ -113,7 +125,7 @@ namespace LookaJayce
                 }
             }
 
-            if (menu.Item("Flee", true).GetValue<KeyBind>().Active)
+            if (menu.Item("Flee", true).GetValue<KeyBind>().Active) //Flee
             {
                 Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
                 if (!isHammer && Ecannon.IsReady())
@@ -162,7 +174,7 @@ namespace LookaJayce
                     Wcannon.Cast();
                 }
 
-                //No abilities left?
+                //No abilities left and in range to hammer Q?
                 if (!Qcannon.IsReady() && !Wcannon.IsReady() && Rswitch.IsReady() && Player.Distance(target.Position) <= 500)
                 {
                     Rswitch.Cast();
@@ -197,7 +209,6 @@ namespace LookaJayce
 
             if (!isHammer)
             {
-
                 //Try QE
                 if (QchargePred.Hitchance >= HitChance.High && GotManaFor(true, false, true) && Ecannon.IsReady() && Qcannon.IsReady())
                 {
@@ -222,25 +233,6 @@ namespace LookaJayce
         private static void insec()
         {
             //coming soon...
-        }
-
-
-        private static Vector2 getGateVector(Vector3 pos)
-        {
-            int distance = menu.Item("GateDistance", true).GetValue<Slider>().Value;
-            if (menu.Item("VerticalGate", true).GetValue<bool>())
-            {
-                distance = (new Random().NextDouble() > 0.5) ? distance : -distance;
-                var v2 = Vector3.Normalize(pos - Player.ServerPosition) * 10;
-                var bom = new Vector2(v2.Y, -v2.X);
-                return Player.ServerPosition.To2D() + bom;
-            }
-            else
-            {
-                var v2 = Vector3.Normalize(pos - Player.ServerPosition) * (distance*10);
-                var bom = new Vector2(v2.X, v2.Y);
-                return Player.ServerPosition.To2D() + bom;
-            }
         }
 
         private static void MLG_quickscope()
@@ -309,6 +301,61 @@ namespace LookaJayce
 
             if (menu.Item("Ehammer", true).GetValue<bool>() && isHammer)
                 Render.Circle.DrawCircle(Player.Position, Ehammer.Range, Ehammer.IsReady() ? Color.Green : Color.Red);
+
+
+
+            if (menu.Item("drawcds", true).GetValue<bool>())
+            {
+                Vector2 wts = Drawing.WorldToScreen(Player.Position);
+                if (isHammer)
+                {
+                    if (QcannonCD == 0)
+                        Drawing.DrawText(wts[0] - 80, wts[1] + 10, Color.White, "Q Ready");
+                    else
+                        Drawing.DrawText(wts[0] - 80, wts[1] + 10, Color.Orange, "Q: " + QcannonCD.ToString("0.0"));
+                    if (WcannonCD == 0)
+                        Drawing.DrawText(wts[0] - 40, wts[1] + 30, Color.White, "W Ready");
+                    else
+                        Drawing.DrawText(wts[0] - 40, wts[1] + 30, Color.Orange, "W: " + WcannonCD.ToString("0.0"));
+                    if (EcannonCD == 0)
+                        Drawing.DrawText(wts[0], wts[1] + 10, Color.White, "E Ready");
+                    else
+                        Drawing.DrawText(wts[0], wts[1] + 10, Color.Orange, "E: " + EcannonCD.ToString("0.0"));
+                }
+                else
+                {
+                    if (QhammerCD == 0)
+                        Drawing.DrawText(wts[0] - 80, wts[1] + 10, Color.White, "Q Ready");
+                    else
+                        Drawing.DrawText(wts[0] - 80, wts[1] + 10, Color.Orange, "Q: " + QhammerCD.ToString("0.0"));
+                    if (WhammerCD == 0)
+                        Drawing.DrawText(wts[0] - 40, wts[1] + 30, Color.White, "W Ready");
+                    else
+                        Drawing.DrawText(wts[0] - 40, wts[1] + 30, Color.Orange, "W: " + WhammerCD.ToString("0.0"));
+                    if (EhammerCD == 0)
+                        Drawing.DrawText(wts[0], wts[1] + 10, Color.White, "E Ready");
+                    else
+                        Drawing.DrawText(wts[0], wts[1] + 10, Color.Orange, "E: " + EhammerCD.ToString("0.0"));
+                }
+            }
+        }
+
+        private static Vector2 getGateVector(Vector3 pos)
+        {
+            int distance = menu.Item("GateDistance", true).GetValue<Slider>().Value;
+            if (menu.Item("VerticalGate", true).GetValue<bool>())
+            {
+                distance = (new Random().NextDouble() > 0.5) ? distance : -distance;
+                var v2 = Vector3.Normalize(pos - Player.ServerPosition) * 10;
+                var bom = new Vector2(v2.Y, -v2.X);
+                return Player.ServerPosition.To2D() + bom;
+            }
+            else
+            {
+                var v2 = Vector3.Normalize(pos - Player.ServerPosition) * (distance * 10);
+                var bom = new Vector2(v2.X, v2.Y);
+                return Player.ServerPosition.To2D() + bom;
+            }
         }
 
         private static void AntiGapcloser_OnEnemyGapcloser(ActiveGapcloser gapcloser)
@@ -320,6 +367,51 @@ namespace LookaJayce
         {
             KnockAway(sender);
         }
+
+
+        //START COOLDOWN STUFF
+        private static void Obj_AI_Base_OnProcessSpellCast(Obj_AI_Base unit, GameObjectProcessSpellCastEventArgs spell)
+        {
+            if (unit.IsMe) GetCooldowns(spell);
+        }
+
+        private static void GetCooldowns(GameObjectProcessSpellCastEventArgs spell)
+        {
+            if (isHammer)
+            {
+                if (spell.SData.Name == "JayceToTheSkies")
+                    QhammerCDrem = Game.Time + CalculateCd(QhammerTrueCD[Qhammer.Level - 1]);
+                if (spell.SData.Name == "JayceStaticField")
+                    WhammerCDrem = Game.Time + CalculateCd(WhammerTrueCD[Whammer.Level - 1]);
+                if (spell.SData.Name == "JayceThunderingBlow")
+                    EhammerCDrem = Game.Time + CalculateCd(EhammerTrueCD[Ehammer.Level - 1]);
+            }
+            else
+            {
+                if (spell.SData.Name == "jayceshockblast")
+                    QcannonCDrem = Game.Time + CalculateCd(QcannonTrueCD[Qcannon.Level - 1]);
+                if (spell.SData.Name == "jaycehypercharge")
+                    WcannonCDrem = Game.Time + CalculateCd(WcannonTrueCD[Wcannon.Level - 1]);
+                if (spell.SData.Name == "jayceaccelerationgate")
+                    EcannonCDrem = Game.Time + CalculateCd(EcannonTrueCD[Ecannon.Level - 1]);
+            }
+        }
+        
+        private static float CalculateCd(float time)
+        {
+            return time + (time * Player.PercentCooldownMod);
+        }
+
+        private static void ProcessCDs()
+        {
+            QhammerCD = ((QhammerCDrem - Game.Time) > 0) ? (QhammerCDrem - Game.Time) : 0;
+            WhammerCD = ((WhammerCDrem - Game.Time) > 0) ? (WhammerCDrem - Game.Time) : 0;
+            EhammerCD = ((EhammerCDrem - Game.Time) > 0) ? (EhammerCDrem - Game.Time) : 0;
+            QcannonCD = ((QcannonCDrem - Game.Time) > 0) ? (QcannonCDrem - Game.Time) : 0;
+            WcannonCD = ((WcannonCDrem - Game.Time) > 0) ? (WcannonCDrem - Game.Time) : 0;
+            EcannonCD = ((EcannonCDrem - Game.Time) > 0) ? (EcannonCDrem - Game.Time) : 0;
+        }
+        //END COOLDOWN STUFF
 
         private static bool GotManaFor(bool q = false, bool w = false, bool e = false)
         {
