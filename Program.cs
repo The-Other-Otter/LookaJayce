@@ -74,6 +74,7 @@ namespace LookaJayce
                 misc.AddItem(new MenuItem("VerticalGate", "Vertical Gate", true).SetValue(false));
                 misc.AddItem(new MenuItem("GateDistance", "Gate Distance", true)).SetValue(new Slider(30, 5, 60));
                 misc.AddItem(new MenuItem("QuickScope", "QuickScope mouse", true)).SetValue(new KeyBind('T', KeyBindType.Press));
+                misc.AddItem(new MenuItem("ToggleHarass", "Toggle Harass", true)).SetValue(new KeyBind('N', KeyBindType.Toggle));
                 misc.AddItem(new MenuItem("Flee", "Tactical Retreat", true)).SetValue(new KeyBind('A', KeyBindType.Press));
                 misc.AddItem(new MenuItem("AntiGapcloser", "Anti Gapcloser", true).SetValue(true));
                 misc.AddItem(new MenuItem("Interrupt", "Interrupt", true).SetValue(true));
@@ -125,6 +126,12 @@ namespace LookaJayce
                 }
             }
 
+            if (menu.Item("ToggleHarass", true).GetValue<KeyBind>().Active)
+            {
+                Harass();
+            }
+
+
             if (menu.Item("Flee", true).GetValue<KeyBind>().Active) //Flee
             {
                 Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
@@ -153,45 +160,56 @@ namespace LookaJayce
 
             if (!isHammer)
             {
-
+    
                 //Try QE
                 if (QchargePred.Hitchance >= HitChance.High && GotManaFor(true, false, true) && Ecannon.IsReady() && Qcannon.IsReady())
                 {
                     Qcharge.Cast(target);
                     Ecannon.Cast(getGateVector(QchargePred.CastPosition));
                 }
+                //Try QE with minion collision
+                else if (QchargePred.Hitchance == HitChance.Collision)
+                {
+                    var minion = QchargePred.CollisionObjects.OrderBy(unit => unit.Distance(Player.ServerPosition)).First();
+                    if (minion.Distance(QchargePred.UnitPosition) < (180 - minion.BoundingRadius/2) &&
+                        minion.Distance(target.ServerPosition) < (180 - minion.BoundingRadius/2))
+                    {
+                        Qcharge.Cast(minion);
+                        Ecannon.Cast(getGateVector(QchargePred.CastPosition));
+                    }
+                }
                 //Try Q
-                else if (QcannonPred.Hitchance >= HitChance.High && GotManaFor(true) && Qcannon.IsReady())
+                else if (QcannonPred.Hitchance >= HitChance.High && Qcannon.IsReady())
                 {
                     Qcannon.Cast(target);
                 }
-
-                //Use W
-                if (Player.Distance(target.Position) <= 450 && GotManaFor(false, true) && Wcannon.IsReady())
+                //Try W
+                if (Player.Distance(target.Position) <= 490 && Wcannon.IsReady())
                 {
                     //Activate muramana
                     //Activate ghostblade
                     Wcannon.Cast();
                 }
-
+    
                 //No abilities left and in range to hammer Q?
-                if (!Qcannon.IsReady() && !Wcannon.IsReady() && Rswitch.IsReady() && Player.Distance(target.Position) <= 500)
+                if (Player.Distance(target.Position) <= 500 && !Qcannon.IsReady() && !Wcannon.IsReady() && Rswitch.IsReady())
                 {
                     Rswitch.Cast();
                 }
             }
-
+    
             if (isHammer)
             {
-                if (Player.Distance(target.Position) <= Qhammer.Range && GotManaFor(true) && Qhammer.IsReady())
+                //Try Q
+                if (Player.Distance(target.Position) <= Qhammer.Range && Qhammer.IsReady())
                 {
                     Qhammer.Cast(target);
-                    if (Whammer.IsReady())
-                    {
-                        Whammer.Cast();
-                    }
                 }
-
+                //Try W
+                if (Player.Distance(target.Position) <= Whammer.Range && Whammer.IsReady())
+                {
+                    Whammer.Cast();
+                }
                 //No abilities left?
                 if (!Qhammer.IsReady() && !Whammer.IsReady() && Rswitch.IsReady())
                 {
@@ -215,8 +233,19 @@ namespace LookaJayce
                     Qcharge.Cast(target);
                     Ecannon.Cast(getGateVector(QchargePred.CastPosition));
                 }
+                //Try QE with minion collision
+                else if (QchargePred.Hitchance == HitChance.Collision)
+                {
+                    var minion = QchargePred.CollisionObjects.OrderBy(unit => unit.Distance(Player.ServerPosition)).First();
+                    if (minion.Distance(QchargePred.UnitPosition) < (180 - minion.BoundingRadius/2) &&
+                        minion.Distance(target.ServerPosition) < (180 - minion.BoundingRadius/2))
+                    {
+                        Qcharge.Cast(minion);
+                        Ecannon.Cast(getGateVector(QchargePred.CastPosition));
+                    }
+                }
                 //Try Q
-                else if (QcannonPred.Hitchance >= HitChance.High && GotManaFor(true) && Qcannon.IsReady())
+                else if (QcannonPred.Hitchance >= HitChance.High && Qcannon.IsReady())
                 {
                     Qcannon.Cast(target);
                 }
@@ -250,7 +279,7 @@ namespace LookaJayce
                     }
                 }
                 //Try Qcannon
-                else if ((Player.GetSpellDamage(enemy, SpellSlot.Q) - 20) > enemy.Health && Qcannon.GetPrediction(enemy).Hitchance >= HitChance.High && GotManaFor(true) && Qcannon.IsReady())
+                if ((Player.GetSpellDamage(enemy, SpellSlot.Q) - 20) > enemy.Health && Qcannon.GetPrediction(enemy).Hitchance >= HitChance.High && GotManaFor(true) && Qcannon.IsReady())
                 {
                     if (isHammer && Rswitch.IsReady()) Rswitch.Cast();
                     if (!isHammer)
@@ -259,22 +288,30 @@ namespace LookaJayce
                     }
                 }
 
-                //Try QEhammer
-                if (Player.Distance(enemy.ServerPosition) <= Qhammer.Range + enemy.BoundingRadius && (Player.GetSpellDamage(enemy, SpellSlot.E) + Player.GetSpellDamage(enemy, SpellSlot.Q, 1) - 20) > enemy.Health && GotManaFor(true, false, true) && Qhammer.IsReady() && Ehammer.IsReady())
+                //Try QEhammer or just Q
+                if (Player.Distance(enemy.ServerPosition) <= Qhammer.Range + enemy.BoundingRadius && ((Player.GetSpellDamage(enemy, SpellSlot.Q, 1) + Player.GetSpellDamage(enemy, SpellSlot.E) - 20) > enemy.Health) && Qhammer.IsReady() && Ehammer.IsReady())
                 {
                     if (!isHammer && Rswitch.IsReady()) Rswitch.Cast();
-
                     if (isHammer)
                     {
                         Qhammer.Cast(enemy);
                         Ehammer.Cast(enemy);
                     }
                 }
+                else if (Player.Distance(enemy.ServerPosition) <= Qhammer.Range + enemy.BoundingRadius && (Player.GetSpellDamage(enemy, SpellSlot.Q, 1) - 20) > enemy.Health && Qhammer.IsReady()) //Will Q kill?
+                {
+                    if (!isHammer && Rswitch.IsReady()) Rswitch.Cast();
+                    if (isHammer)
+                    {
+                        Qhammer.Cast(enemy);
+                    }
+                }
+
+
                 //Try Ehammer
                 if (Player.Distance(enemy.ServerPosition) <= Ehammer.Range && Player.GetSpellDamage(enemy, SpellSlot.E) > enemy.Health && GotManaFor(false, false, true) && Ehammer.IsReady())
                 {
                     if (!isHammer && Rswitch.IsReady()) Rswitch.Cast();
-
                     if (isHammer)
                     {
                         Ehammer.Cast(enemy);
