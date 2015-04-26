@@ -10,6 +10,7 @@ namespace LookaJayce
 {
     class Program
     {
+        //Important vars
         private static Menu menu;
         private static Orbwalking.Orbwalker Orbwalker;
         private static Obj_AI_Hero Player = ObjectManager.Player;
@@ -43,6 +44,11 @@ namespace LookaJayce
         private static readonly SpellDataInst Edata = ObjectManager.Player.Spellbook.GetSpell(SpellSlot.E);
         private static bool isHammer;
 
+        //Jungle steal variable
+        
+
+
+
         private static void Main(string[] args)
         {
             CustomEvents.Game.OnGameLoad += Game_OnGameLoad;
@@ -51,8 +57,8 @@ namespace LookaJayce
         private static void Game_OnGameLoad(EventArgs args)
         {
             if (Player.ChampionName != "Jayce") return;
-            
 
+            
             //Main menu
             menu = new Menu("Jayce", "Jayce", true);
 
@@ -68,11 +74,14 @@ namespace LookaJayce
             Qcannon.SetSkillshot(0.250f, 70f, 1500, true, SkillshotType.SkillshotLine);
             Qcharge.SetSkillshot(0.250f, 70f, 2180, true, SkillshotType.SkillshotLine);
 
+
+            //Misc menu
             Menu misc = new Menu("Misc", "Misc");
             {
                 misc.AddItem(new MenuItem("ks", "Kill Steal", true).SetValue(true));
+                misc.AddItem(new MenuItem("JungleSteal", "Jungle Steal", true).SetValue(true));
                 misc.AddItem(new MenuItem("VerticalGate", "Vertical Gate", true).SetValue(false));
-                misc.AddItem(new MenuItem("GateDistance", "Gate Distance", true)).SetValue(new Slider(30, 5, 60));
+                misc.AddItem(new MenuItem("GateDistance", "Gate Distance", true)).SetValue(new Slider(10, 5, 60));
                 misc.AddItem(new MenuItem("QuickScope", "QuickScope mouse", true)).SetValue(new KeyBind('T', KeyBindType.Press));
                 misc.AddItem(new MenuItem("ToggleHarass", "Toggle Harass", true)).SetValue(new KeyBind('N', KeyBindType.Toggle));
                 misc.AddItem(new MenuItem("Flee", "Tactical Retreat", true)).SetValue(new KeyBind('A', KeyBindType.Press));
@@ -81,7 +90,7 @@ namespace LookaJayce
                 menu.AddSubMenu(misc);
             }
 
-            //Drawings menu:
+            //Drawings menu
             Menu drawMenu = new Menu("Drawings", "Drawings");
             {
                 drawMenu.AddItem(new MenuItem("DisableDrawing", "Disable Drawing", true).SetValue(false));
@@ -92,6 +101,21 @@ namespace LookaJayce
                 drawMenu.AddItem(new MenuItem("Ehammer", "E Hammer", true).SetValue(false));
                 drawMenu.AddItem(new MenuItem("drawcds", "Draw Cooldowns", true).SetValue(true));
                 menu.AddSubMenu(drawMenu);
+            }
+
+            //Camps menu for jungle steal
+            Menu campsMenu = new Menu("Camps", "Camps");
+            {
+                campsMenu.AddItem(new MenuItem("SRU_Baron", "Baron Enabled").SetValue(true));
+                campsMenu.AddItem(new MenuItem("SRU_Dragon", "Dragon Enabled").SetValue(true));
+                campsMenu.AddItem(new MenuItem("SRU_Blue", "Blue Enabled").SetValue(true));
+                campsMenu.AddItem(new MenuItem("SRU_Red", "Red Enabled").SetValue(true));
+                campsMenu.AddItem(new MenuItem("SRU_Gromp", "Gromp Enabled").SetValue(false));
+                campsMenu.AddItem(new MenuItem("SRU_Murkwolf", "Murkwolf Enabled").SetValue(false));
+                campsMenu.AddItem(new MenuItem("SRU_Krug", "Krug Enabled").SetValue(false));
+                campsMenu.AddItem(new MenuItem("SRU_Razorbeak", "Razorbeak Enabled").SetValue(false));
+                campsMenu.AddItem(new MenuItem("Sru_Crab", "Crab Enabled").SetValue(false));
+                menu.AddSubMenu(campsMenu);
             }
             menu.AddToMainMenu();
 
@@ -115,14 +139,19 @@ namespace LookaJayce
                 MLG_quickscope();
             }
 
+            if (menu.Item("JungleSteal", true).GetValue<bool>()) //KS Check
+            {
+                jungleSteal();
+            }
+
             if (menu.Item("QuickScope", true).GetValue<KeyBind>().Active) //Shootmouse
             {
                 Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
-                if (isHammer && Rswitch.IsReady()) Rswitch.Cast();
+                if (isHammer && Rswitch.IsReady()) Rswitch.Cast(true);
                 if (!isHammer && Ecannon.IsReady() && Qcannon.IsReady())
                 {
-                    Qcannon.Cast(Game.CursorPos);
-                    Ecannon.Cast(getGateVector(Game.CursorPos));
+                    Qcannon.Cast(Game.CursorPos, true);
+                    Ecannon.Cast(getGateVector(Game.CursorPos), true);
                 }
             }
 
@@ -136,8 +165,8 @@ namespace LookaJayce
             {
                 Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
                 if (!isHammer && Ecannon.IsReady())
-                    Ecannon.Cast(getGateVector(Game.CursorPos));
-                if (Rswitch.IsReady()) Rswitch.Cast();
+                    Ecannon.Cast(getGateVector(Game.CursorPos), true);
+                if (Rswitch.IsReady()) Rswitch.Cast(true);
             }
 
             switch (Orbwalker.ActiveMode)
@@ -164,37 +193,37 @@ namespace LookaJayce
                 //Try QE
                 if (QchargePred.Hitchance >= HitChance.High && GotManaFor(true, false, true) && Ecannon.IsReady() && Qcannon.IsReady())
                 {
-                    Qcharge.Cast(target);
-                    Ecannon.Cast(getGateVector(QchargePred.CastPosition));
+                    Qcharge.Cast(target, true);
+                    Ecannon.Cast(getGateVector(QchargePred.CastPosition), true);
                 }
                 //Try QE with minion collision
-                else if (QchargePred.Hitchance == HitChance.Collision)
+                else if (QchargePred.Hitchance == HitChance.Collision && GotManaFor(true, false, true) && Ecannon.IsReady() && Qcannon.IsReady())
                 {
                     var minion = QchargePred.CollisionObjects.OrderBy(unit => unit.Distance(Player.ServerPosition)).First();
                     if (minion.Distance(QchargePred.UnitPosition) < (180 - minion.BoundingRadius/2) &&
                         minion.Distance(target.ServerPosition) < (180 - minion.BoundingRadius/2))
                     {
-                        Qcharge.Cast(minion);
-                        Ecannon.Cast(getGateVector(QchargePred.CastPosition));
+                        Qcharge.Cast(minion, true);
+                        Ecannon.Cast(getGateVector(QchargePred.CastPosition), true);
                     }
                 }
                 //Try Q
                 else if (QcannonPred.Hitchance >= HitChance.High && Qcannon.IsReady())
                 {
-                    Qcannon.Cast(target);
+                    Qcannon.Cast(target, true);
                 }
                 //Try W
                 if (Player.Distance(target.Position) <= 490 && Wcannon.IsReady())
                 {
                     //Activate muramana
                     //Activate ghostblade
-                    Wcannon.Cast();
+                    Wcannon.Cast(true);
                 }
     
                 //No abilities left and in range to hammer Q?
-                if (Player.Distance(target.Position) <= 500 && !Qcannon.IsReady() && !Wcannon.IsReady() && Rswitch.IsReady())
+                if (Player.Distance(target.Position) <= 510 && !Qcannon.IsReady() && !Wcannon.IsReady() && Rswitch.IsReady())
                 {
-                    Rswitch.Cast();
+                    Rswitch.Cast(true);
                 }
             }
     
@@ -203,17 +232,17 @@ namespace LookaJayce
                 //Try Q
                 if (Player.Distance(target.Position) <= Qhammer.Range && Qhammer.IsReady())
                 {
-                    Qhammer.Cast(target);
+                    Qhammer.Cast(target, true);
                 }
                 //Try W
                 if (Player.Distance(target.Position) <= Whammer.Range && Whammer.IsReady())
                 {
-                    Whammer.Cast();
+                    Whammer.Cast(true);
                 }
                 //No abilities left?
                 if (!Qhammer.IsReady() && !Whammer.IsReady() && Rswitch.IsReady())
                 {
-                    Rswitch.Cast();
+                    Rswitch.Cast(true);
                 }
             }
         }
@@ -230,24 +259,24 @@ namespace LookaJayce
                 //Try QE
                 if (QchargePred.Hitchance >= HitChance.High && GotManaFor(true, false, true) && Ecannon.IsReady() && Qcannon.IsReady())
                 {
-                    Qcharge.Cast(target);
-                    Ecannon.Cast(getGateVector(QchargePred.CastPosition));
+                    Qcharge.Cast(target, true);
+                    Ecannon.Cast(getGateVector(QchargePred.CastPosition), true);
                 }
                 //Try QE with minion collision
-                else if (QchargePred.Hitchance == HitChance.Collision)
+                else if (QchargePred.Hitchance == HitChance.Collision && GotManaFor(true, false, true) && Ecannon.IsReady() && Qcannon.IsReady())
                 {
                     var minion = QchargePred.CollisionObjects.OrderBy(unit => unit.Distance(Player.ServerPosition)).First();
                     if (minion.Distance(QchargePred.UnitPosition) < (180 - minion.BoundingRadius/2) &&
                         minion.Distance(target.ServerPosition) < (180 - minion.BoundingRadius/2))
                     {
-                        Qcharge.Cast(minion);
-                        Ecannon.Cast(getGateVector(QchargePred.CastPosition));
+                        Qcharge.Cast(minion, true);
+                        Ecannon.Cast(getGateVector(QchargePred.CastPosition), true);
                     }
                 }
                 //Try Q
                 else if (QcannonPred.Hitchance >= HitChance.High && Qcannon.IsReady())
                 {
-                    Qcannon.Cast(target);
+                    Qcannon.Cast(target, true);
                 }
             }
         }
@@ -255,8 +284,8 @@ namespace LookaJayce
         private static void KnockAway(Obj_AI_Base target)
         {
             if (Player.Distance(target.Position) > Ehammer.Range || !Ehammer.IsReady()) return;
-            if (!isHammer && Rswitch.IsReady()) Rswitch.Cast(); //Hammer form
-            if (isHammer && Ehammer.IsReady()) Ehammer.Cast(target); //Knock back
+            if (!isHammer && Rswitch.IsReady()) Rswitch.Cast(true); //Hammer form
+            if (isHammer && Ehammer.IsReady()) Ehammer.Cast(target, true); //Knock back
         }
 
         private static void insec()
@@ -271,39 +300,39 @@ namespace LookaJayce
                 //Try Qcharge
                 if ((Player.GetSpellDamage(enemy, SpellSlot.Q) * 1.4 - 20) > enemy.Health && Qcharge.GetPrediction(enemy).Hitchance >= HitChance.High && GotManaFor(true, false, true) && Ecannon.IsReady() && Qcannon.IsReady())
                 {
-                    if (isHammer && Rswitch.IsReady()) Rswitch.Cast();
+                    if (isHammer && Rswitch.IsReady()) Rswitch.Cast(true);
                     if (!isHammer)
                     {
-                        Qcharge.Cast(enemy);
-                        Ecannon.Cast(getGateVector(Qcharge.GetPrediction(enemy).CastPosition));
+                        Qcharge.Cast(enemy, true);
+                        Ecannon.Cast(getGateVector(Qcharge.GetPrediction(enemy).CastPosition), true);
                     }
                 }
                 //Try Qcannon
                 if ((Player.GetSpellDamage(enemy, SpellSlot.Q) - 20) > enemy.Health && Qcannon.GetPrediction(enemy).Hitchance >= HitChance.High && GotManaFor(true) && Qcannon.IsReady())
                 {
-                    if (isHammer && Rswitch.IsReady()) Rswitch.Cast();
+                    if (isHammer && Rswitch.IsReady()) Rswitch.Cast(true);
                     if (!isHammer)
                     {
-                        Qcannon.Cast(enemy);
+                        Qcannon.Cast(enemy, true);
                     }
                 }
 
                 //Try QEhammer or just Q
                 if (Player.Distance(enemy.ServerPosition) <= Qhammer.Range + enemy.BoundingRadius && ((Player.GetSpellDamage(enemy, SpellSlot.Q, 1) + Player.GetSpellDamage(enemy, SpellSlot.E) - 20) > enemy.Health) && Qhammer.IsReady() && Ehammer.IsReady())
                 {
-                    if (!isHammer && Rswitch.IsReady()) Rswitch.Cast();
+                    if (!isHammer && Rswitch.IsReady()) Rswitch.Cast(true);
                     if (isHammer)
                     {
-                        Qhammer.Cast(enemy);
-                        Ehammer.Cast(enemy);
+                        Qhammer.Cast(enemy, true);
+                        Ehammer.Cast(enemy, true);
                     }
                 }
                 else if (Player.Distance(enemy.ServerPosition) <= Qhammer.Range + enemy.BoundingRadius && (Player.GetSpellDamage(enemy, SpellSlot.Q, 1) - 20) > enemy.Health && Qhammer.IsReady()) //Will Q kill?
                 {
-                    if (!isHammer && Rswitch.IsReady()) Rswitch.Cast();
+                    if (!isHammer && Rswitch.IsReady()) Rswitch.Cast(true);
                     if (isHammer)
                     {
-                        Qhammer.Cast(enemy);
+                        Qhammer.Cast(enemy, true);
                     }
                 }
 
@@ -311,10 +340,10 @@ namespace LookaJayce
                 //Try Ehammer
                 if (Player.Distance(enemy.ServerPosition) <= Ehammer.Range && Player.GetSpellDamage(enemy, SpellSlot.E) > enemy.Health && GotManaFor(false, false, true) && Ehammer.IsReady())
                 {
-                    if (!isHammer && Rswitch.IsReady()) Rswitch.Cast();
+                    if (!isHammer && Rswitch.IsReady()) Rswitch.Cast(true);
                     if (isHammer)
                     {
-                        Ehammer.Cast(enemy);
+                        Ehammer.Cast(enemy, true);
                     }
                 }
             }
@@ -450,6 +479,71 @@ namespace LookaJayce
         }
         //END COOLDOWN STUFF
 
+
+        private static Obj_AI_Base mob;
+        private static string[] MinionNames = 
+        {
+            "TT_Spiderboss", "TTNGolem", "TTNWolf", "TTNWraith",
+            "SRU_Blue", "SRU_Gromp", "SRU_Murkwolf", "SRU_Razorbeak", 
+            "SRU_Red", "SRU_Krug", "SRU_Dragon", "Sru_Crab", "SRU_Baron"
+        };
+
+
+        private static void jungleSteal()
+        {
+            mob = GetNearest(ObjectManager.Player.ServerPosition);
+            if (mob != null && menu.Item(mob.BaseSkinName).GetValue<bool>())
+            {
+                var healthPred = HealthPrediction.GetHealthPrediction(mob, (int)Qcharge.Delay);
+
+                var QchargePred = Qcharge.GetPrediction(mob);
+                if ((Player.GetSpellDamage(mob, SpellSlot.Q) * 1.4 - 20) > healthPred && QchargePred.Hitchance >= HitChance.High && GotManaFor(true, false, true) && Ecannon.IsReady() && Qcannon.IsReady())
+                {
+                    if (isHammer && Rswitch.IsReady()) Rswitch.Cast(true);
+                    if (!isHammer)
+                    {
+                        Qcharge.Cast(mob, true);
+                        Ecannon.Cast(getGateVector(Qcharge.GetPrediction(mob).CastPosition), true);
+                    }
+                }
+                else if (QchargePred.Hitchance == HitChance.Collision && GotManaFor(true, false, true) && Ecannon.IsReady() && Qcannon.IsReady())
+                {
+                    if (isHammer && Rswitch.IsReady()) Rswitch.Cast(true);
+                    if (!isHammer)
+                    {
+                        var minion = QchargePred.CollisionObjects.OrderBy(unit => unit.Distance(Player.ServerPosition)).First();
+                        if (minion.Distance(QchargePred.UnitPosition) < (180 - minion.BoundingRadius / 2) &&
+                            minion.Distance(mob.ServerPosition) < (180 - minion.BoundingRadius / 2))
+                        {
+                            Qcharge.Cast(minion, true);
+                            Ecannon.Cast(getGateVector(QchargePred.CastPosition), true);
+                        }
+                    }
+                }
+            }
+        }
+
+
+        private static Obj_AI_Minion GetNearest(Vector3 pos)
+        {
+            var minions =
+                ObjectManager.Get<Obj_AI_Minion>()
+                    .Where(minion => minion.IsValid && MinionNames.Any(name => minion.Name.StartsWith(name)) && !MinionNames.Any(name => minion.Name.Contains("Mini")) && !MinionNames.Any(name => minion.Name.Contains("Spawn")));
+            var objAiMinions = minions as Obj_AI_Minion[] ?? minions.ToArray();
+            Obj_AI_Minion sMinion = objAiMinions.FirstOrDefault();
+            double? nearest = null;
+            foreach (Obj_AI_Minion minion in objAiMinions)
+            {
+                double distance = Vector3.Distance(pos, minion.Position);
+                if (nearest == null || nearest > distance)
+                {
+                    nearest = distance;
+                    sMinion = minion;
+                }
+            }
+            return sMinion;
+        }
+
         private static bool GotManaFor(bool q = false, bool w = false, bool e = false)
         {
             float manaNeeded = 0;
@@ -458,6 +552,5 @@ namespace LookaJayce
             if (e) manaNeeded += Edata.ManaCost;
             return manaNeeded <= Player.Mana;
         }
-
     }
 }
