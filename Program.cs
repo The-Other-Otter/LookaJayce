@@ -506,7 +506,7 @@ namespace LookaJayce
                         Ecannon.Cast(getGateVector(Qcharge.GetPrediction(mob).CastPosition), true);
                     }
                 }
-                else if (QchargePred.Hitchance == HitChance.Collision && GotManaFor(true, false, true) && Ecannon.IsReady() && Qcannon.IsReady())
+                else if ((Player.GetSpellDamage(mob, SpellSlot.Q) * 1.4 - 20) > healthPred && QchargePred.Hitchance == HitChance.Collision && GotManaFor(true, false, true) && Ecannon.IsReady() && Qcannon.IsReady())
                 {
                     if (isHammer && Rswitch.IsReady()) Rswitch.Cast(true);
                     if (!isHammer)
